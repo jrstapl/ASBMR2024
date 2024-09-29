@@ -1,17 +1,14 @@
 from datetime import datetime
 import itk
-import itk.itkImageFileReaderPython
-import matplotlib.pyplot as plt
 import numpy as np
 from operator import lt, gt
 import pandas as pd
 from pathlib import Path
 import SimpleITK as sitk
 import sys
-from typing import NewType, Tuple, Iterable, Union
+from typing import NewType, Tuple, Union
 from math import ceil, floor
 
-from imat_extraction import extract_imat
 
 sitkBinaryMask = NewType("sitkBinaryMask",sitk.Image)
 
@@ -24,53 +21,6 @@ class FileNotSupportedError(Exception):
     """Raised when a filetype passed to a function is not supported
     """
 
-
-class SitkBinaryMathFilter:
-    """Class for performing math operations on binary images and maintaining
-    binary labeling after the operation
-    """
-    def __init__(self):
-        pass
-
-
-    def SetImg1(self,_img: sitkBinaryMask):
-        self.img1 = _img
-    
-    def setImg2(self, _img: sitkBinaryMask):
-        self.img2 = _img
-
-    def GetImg1(self):
-        return self.img1
-    
-    def GetImg2(self):
-        return self.img2
-    
-
-    def Add(self):
-        addFilter = sitk.AddImageFilter()
-        binFilter = sitk.BinaryThresholdImageFilter()
-        binFilter.SetLowerThreshold(1)
-        binFilter.SetUpperThreshold(100000)
-        binFilter.SetInsideValue(1)
-        binFilter.SetOutsideValue(0)
-
-        tmp = addFilter.Execute(self.img1,self.img2)
-        
-        return binFilter.Execute(tmp)
-
-    def Subtract(self):
-
-        subtractFilter = sitk.SubtractImageFilter()
-        binFilter = sitk.BinaryThresholdImageFilter()
-        binFilter.SetLowerThreshold(1)
-        binFilter.SetUpperThreshold(100000)
-        binFilter.SetInsideValue(1)
-        binFilter.SetOutsideValue(0)
-
-        tmp = subtractFilter.Execute(self.img1,self.img2)
-        
-        return binFilter.Execute(tmp)
-    
 class SoftTissueOutput():
     """Class for holding output data from soft tissue analysis program
     """
@@ -116,24 +66,6 @@ def write_image_with_date(_img: sitk.Image, _name: Union[str, Path], _CreationDa
         _img,
         name
     )
-
-def date_in_metadata(_img: sitk.Image) -> int:
-    """Check if creation date is in metadata of an image and
-    return value corresponding to tags present. 
-
-    :param _img: Input sitk image
-    :type _img: sitk.Image
-    :return: return code for tag present
-    :rtype: int
-    """
-    keys = _img.GetMetaDataKeys()
-
-    if "CreationDate" in keys:
-        return 0
-    if "ModifiedDate" in keys:
-        return 1
-    
-    else: return -1
     
 
 def remove_skin_from_image(_img: sitk.Image, _mask: sitk.Image,
@@ -203,22 +135,6 @@ def remove_skin_from_image(_img: sitk.Image, _mask: sitk.Image,
     return shrink_mask, sub_img
 
 
-def get_image_using_mask(_img: sitk.Image, _mask: sitk.Image) -> sitk.Image:
-    """Extract sitk image which falls in the region of a specified binary mask.
-
-    :param _img: Greyscale image
-    :type _img: sitk.Image
-    :param _mask: Mask which overlaps the desired region of the greyscale image
-    :type _mask: sitk.Image
-    :return: Greyvalue image with only mask ROI remaining.
-    :rtype: sitk.Image
-    """
-    _img_nda = sitk.GetArrayFromImage(_img)
-    _mask_nda = sitk.GetArrayFromImage(_mask)
-    img = sitk.GetImageFromArray(_mask_nda * _img_nda)
-    img.CopyInformation(_img)
-    return img
-
 def read_scanco(_ImagePath: Path, _preprocess_name: bool = True) -> Tuple[itk.image,dict]:
     """Read scanco image using ITKScancoIO and convert to sitk image. 
     Additionally extract and return image metadata dictionary
@@ -247,42 +163,7 @@ def read_scanco(_ImagePath: Path, _preprocess_name: bool = True) -> Tuple[itk.im
         print(f"Unknown file extension: {_ImagePath.suffix}")
         print(f"With file:\n{_ImagePath}")
         raise(FileNotSupportedError("Please use .isq or .aim file for scanco image type"))
-    
-
-def sitk_meta_to_dict(_reader: sitk.ImageFileReader) -> dict:
-    """Gather sitk image metadata into a dictionary
-
-    :param _reader: Reader used to read SimpleITK image
-    :type _reader: sitk.ImageFileReader
-    :return: Image metadata dictionary
-    :rtype: dict
-    """
-    meta = dict()
-    for key in _reader.GetMetaDataKeys():
-        meta[key] = _reader.GetMetaData(key)
-
-    return meta
-
-
-def read_img_and_meta(_file: Path) -> Tuple[sitk.Image, dict]:
-    """Read and return image and metadata with sitk
-
-    :param _file: Filepath of image
-    :type _file: Path
-    :return: sitk Image and metadata dictionary
-    :rtype: Tuple[sitk.Image, dict]
-    """
-    reader = sitk.ImageFileReader()
-    reader.SetFileName(str(_file))
-    reader.LoadPrivateTagsOn()
-    reader.ReadImageInformation()
-    img = reader.Execute()
-
-
-    meta = sitk_meta_to_dict(reader)
-
-    return img, meta
-        
+            
 
 
 def itk_to_sitk(_imgITK: itk.image) -> sitk.Image:
@@ -325,22 +206,6 @@ def sitk_cc_keep_largest(_img: sitk.Image) -> sitk.ConnectedComponent:
     del _cc, _sorted
 
     return largest
-
-
-
-
-
-def myshow(_img: sitk.Image):
-    """Show single slice of 3D image.
-
-    :param _img: Image to be plotted
-    :type _img: sitk.Image
-    """
-
-    plt.imshow(
-        sitk.GetArrayFromImage(_img)[84,:,:],
-        cmap="Greys_r"
-    )
 
 def remove_small_islands(_binImg: sitk.Image, _volThresh: float = None, _pixNum: float = None) -> sitk.Image:
     """Remove isolated islants in a binary image using either a 
@@ -431,89 +296,10 @@ def verbose_out(_section: str):
     print(f"::::{_section}....\n")
 
 
-
-
-def fill_diaphyseal_bone_area(_boneMask: sitkBinaryMask,
-                   _limbMask: sitkBinaryMask) -> sitkBinaryMask:
-    """Fill holes to create solid bone mask through inversion of the
-    trabecular space and a binary hole filling.
-
-    :param _boneMask: Binary mask of bone segmentation
-    :type _boneMask: sitkBinaryMask
-    :param _limbMask: Mask of full limb
-    :type _limbMask: sitkBinaryMask
-    :return: Solid binary bone mask
-    :rtype: sitkBinaryMask
-    """
-    inv = sitk.InvertIntensityImageFilter()
-    sub = sitk.SubtractImageFilter()
-    add = sitk.AddImageFilter()
-    mult = sitk.MultiplyImageFilter()
-    inv.SetMaximum(1) # ensure binary image result
-
-
-    invImg = inv.Execute(_boneMask)
-
-    invLimb = mult.Execute(invImg,_limbMask)
-    cc = sitk_cc_keep_largest(invLimb)
-
-    holes = sub.Execute(invLimb,cc)
-
-    filled = add.Execute(_boneMask,holes)
-    return filled
-
-def fill_distal_bones(_bone_mask: sitk.Image) -> sitkBinaryMask:
-    """Perform large closing step to fill holes in bone
-
-    :param _bone_mask: Binary mask of bone isolated from limb
-    :type _bone_mask: sitk.Image
-    :return: Solid mask of bone area.
-    :rtype: sitkBinaryMask
-    """
-    invFilter = sitk.InvertIntensityImageFilter()
-    dilateFilter = sitk.DilateObjectMorphologyImageFilter()
-    multFilter = sitk.MultiplyImageFilter()
-    openFilter = sitk.BinaryMorphologicalOpeningImageFilter()
-    closeFilter = sitk.BinaryMorphologicalClosingImageFilter()
-    relabFilter = sitk.RelabelComponentImageFilter()
-    ccFilter = sitk.ConnectedComponentImageFilter()
-
-    dilateFilter.SetKernelRadius(1)
-    invFilter.SetMaximum(1)
-    openFilter.SetKernelRadius(1)
-    closeFilter.SetKernelRadius(5)
-    relabFilter.SortByObjectSizeOn()
-
-    # roi_mask = sitk.BinaryThreshold(_limb_roi,500,10000)
-
-
-
-
-    mask_open = openFilter.Execute(_bone_mask)
-    mask_close = closeFilter.Execute(mask_open)
-    mask_inv = invFilter.Execute(mask_close)
-
-    mask_cc = relabFilter.Execute(
-        ccFilter.Execute(
-            mask_inv
-        )
-    ) == 1
-
-    hole_closed = closeFilter.Execute(mask_cc)
-    hole_solid = invFilter.Execute(hole_closed)
-
-    mask_solid_inv = multFilter.Execute(mask_inv, hole_solid)
-
-    mask_solid = invFilter.Execute(mask_solid_inv)
-
-    return mask_solid
-
-    
-
 def calculate_gauss_sigma(_sig: float, _voxDim: float) -> float:
     """Calculate sigma value for smoothing gaussian filter.
 
-    Per ORMIR XCT
+    Per ORMIR XCT https://github.com/SpectraCollab/ORMIR_XCT
 
     :param _sig: Original sigma value
     :type _sig: float
@@ -523,33 +309,6 @@ def calculate_gauss_sigma(_sig: float, _voxDim: float) -> float:
     :rtype: float
     """
     return _sig * _voxDim
-
-
-def _check_minmax(_img: sitk.Image):
-    """print minimum and maximum value of an image.
-
-    Used in development.
-
-    :param _img: simple itk
-    :type _img: sitk.Image
-    """
-    print(sitk.GetArrayFromImage(_img).max())
-    print(sitk.GetArrayFromImage(_img).min())
-
-def _check_image_stats(_img: sitk.Image):
-    """Print image metadata related to size and spatial characteristics
-
-    Used in development.
-
-    :param _img: SITK image
-    :type _img: sitk.Image
-    """
-    print(r"////////////////////")
-    print(f"Size: {_img.GetSize()}")
-    print(f"Spacing: {_img.GetSpacing()}")
-    print(f"Origin: {_img.GetOrigin()}")
-    print(r"////////////////////")
-
 
 
 def pad_image(_img: sitk.Image, _lower_dims: Tuple[int],_upper_dims: Tuple[float], _const: int = 0) -> sitk.Image:
@@ -633,7 +392,6 @@ def SoftTissueSegmentation(_InputPath: Path,
     #####Initialize Filters#######
     ##############################
     andFilter = sitk.AndImageFilter()
-    addFilter = sitk.AddImageFilter()
     binFilter = sitk.BinaryThresholdImageFilter()
     clampFilter = sitk.ClampImageFilter()
     clampFilter.SetUpperBound(1)
@@ -665,7 +423,6 @@ def SoftTissueSegmentation(_InputPath: Path,
 
 
     if _v: verbose_out("Reading Image")
-    ## Read image to ITK
 
     filetype = ".".join(_InputPath.suffixes).lower()
 
@@ -693,6 +450,7 @@ def SoftTissueSegmentation(_InputPath: Path,
     output_dir = _OutputPath / name
     output_dir.mkdir(exist_ok=True,parents=True)
 
+    # Calculate image height for CSA
     height = original_image_sitk.GetSpacing()[2] * original_image_sitk.GetSize()[2]
 
 
@@ -721,6 +479,7 @@ def SoftTissueSegmentation(_InputPath: Path,
         ]
     )
 
+    # Downsample Image
     resampled = sitk.Resample(original_image_sitk,ref_img)
     voxDim = resampled.GetSpacing()[2]
 
@@ -738,13 +497,14 @@ def SoftTissueSegmentation(_InputPath: Path,
     # Needs to be fully filled for subsequent stats/erosion steps to work
     if _v: verbose_out("Creating Limb Mask")
 
-
+    # Create mask that contains all soft tissue
     filled_otsu = create_limb_mask(resampled)
 
+    # Get region containing limb mask
     labelStatsFilter.Execute(resampled, filled_otsu)
     bb_limb = labelStatsFilter.GetRegion(1)
 
-
+    # Isolate limb in image
     roiFilter.SetRegionOfInterest(bb_limb)
     roi = roiFilter.Execute(resampled)
     roi_mask = roiFilter.Execute(filled_otsu)
@@ -772,16 +532,11 @@ def SoftTissueSegmentation(_InputPath: Path,
     )
     smoothed = smoothingGaussFilter.Execute(roi)
     if _v: verbose_out("Removing Skin")
-
-    op = gt # seems to work for both, leaving just in case something changes
-
+    # Segment skin from image and create skin mask and nonskin mask
     shrink_mask, skin_mask = remove_skin_from_image(smoothed,
                                                    roi_mask,
-                                                   _v = _v,
-                                                   _operator = op
+                                                   _v = _v
                                                    )
-    
-
 
     if _write_inter:
         skin_remove_name = output_dir / f"{name}_Skin_Removed_Mask.nii.gz"
@@ -804,21 +559,23 @@ def SoftTissueSegmentation(_InputPath: Path,
     binFilter.SetOutsideValue(0)
     binFilter.SetInsideValue(1)
 
-
+    # Remove skin from greyvalue image
     no_skin = maskFilter.Execute(roi,shrink_mask)
 
-
+    # Smooth image
     smoothingGaussFilter.SetSigma(
         calculate_gauss_sigma(0.8,voxDim)
     )
     smoothed = smoothingGaussFilter.Execute(no_skin)
 
-    # Bone fill needs to be stronger for distal images to close holes
 
+    ## This section is a bit messy, but for some reason it worked better
+    # like this rather than in it's own function
+
+    # Segment bones
     binFilter.SetLowerThreshold(300)
     binFilter.SetUpperThreshold(100000)
     bones_bin = binFilter.Execute(smoothed)
-
 
     openFilter.SetKernelRadius(2)
     bones_open = openFilter.Execute(bones_bin)
@@ -859,7 +616,7 @@ def SoftTissueSegmentation(_InputPath: Path,
 
     if _v: verbose_out("Creating Seeds")
 
-
+    # 
     no_bone = negFilter.Execute(no_skin,
                                 sitk.Cast(bones,no_skin.GetPixelID()
                                           ))
@@ -922,7 +679,7 @@ def SoftTissueSegmentation(_InputPath: Path,
     musc = musc_seed
 
     
-
+    # Iterative growing proceedure
     for i in range(max_iter):
         fat_dil = dilateFilter.Execute(fat)
         mus_dil = dilateFilter.Execute(musc)
@@ -936,7 +693,6 @@ def SoftTissueSegmentation(_InputPath: Path,
         musc = binFilter.Execute(tmp_mus)
 
     # Used for removal of these areas in final mask
-
     bone_inv = invFilter.Execute(bones)
     skin_inv = invFilter.Execute(skin_mask)
 
@@ -945,10 +701,12 @@ def SoftTissueSegmentation(_InputPath: Path,
     
 
     if _v: verbose_out("Finalizing Masks")
+    # Close holes and remove small islands
     musc_clean = finalize_mask(musc, _rad = 10)
     fat_clean = finalize_mask(fat, _rad = 8)
 
 
+    # Ensure muscle and fat masks don't overlap skin or bone
     musc_tmp = multFilter.Execute(musc_clean,bone_inv)
     musc_final = multFilter.Execute(musc_tmp,skin_inv)
 
@@ -976,7 +734,7 @@ def SoftTissueSegmentation(_InputPath: Path,
 
     if _v: verbose_out("Calculating Statistics")
 
-
+    # Use label shape statistics filter to get characteristics
     shapeStatsFilter.Execute(fat_final)
     fv = shapeStatsFilter.GetPhysicalSize(1)
 
@@ -994,7 +752,6 @@ def SoftTissueSegmentation(_InputPath: Path,
 
     # Density
     labelStatsFilter.Execute(roi, musc_final)
-
     musc_p = labelStatsFilter.GetMean(1)
         
     ## TODO:: save to output csv file or something
@@ -1043,11 +800,10 @@ def SoftTissueSegmentation(_InputPath: Path,
             CreationDate
         )
 
-
         return SoftTissueOutput(mv,musc_p,csa,tv,fv,mv_tv)
     
-def validate(input_directory: str):
-    """Run soft tissue segmentation batch for validation images.
+def batch_process(input_directory: str):
+    """Run soft tissue segmentation batch for images.
     Write results to excel file. 
 
     :param input_directory: Input directory to segment.
@@ -1126,10 +882,15 @@ if __name__ == "__main__":
     import argparse
 
     args = parse_args()
-    SoftTissueSegmentation(Path(args.input),
+
+    usr_input = Path(args.input)
+    if usr_input.is_file():
+        SoftTissueSegmentation(usr_input,
                            Path(args.output),
                            _fat_thresh = [args.fat_lower, args.fat_upper],
                            _muscle_thresh = [args.muscle_lower, args.muscle_upper],
                            _write_inter = args.write_intermediate,
                            _preprocess_name = args.preprocess_name,
                            _v = args.verbose)
+    elif usr_input.is_dir():
+        batch_process(usr_input)
