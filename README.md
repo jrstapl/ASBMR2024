@@ -10,6 +10,10 @@
 - HRpQCT can be used for soft tissue analysis
 - This repository contains a similar style analysis program written in python with SimpleITK
 - The environment can be set up using [anaconda](https://www.anaconda.com/)
+- The required python version is  
+```
+python=3.7
+```
 
 # Methods
 The original image is first downsampled in all dimensions by a factor of 3x, followed by isolation of the limb region of interest (ROI) through segmentation mask extraction. The skin is then segmented from the soft tissue mask and removed, this segmentation is also used to remove fat and muscle segmentations in the skin region. Bones are then segmented and removed from the image based on a binary threshold and mask closing step. Binary thresholding is then used to set fat and muscle mask starting seeds which are cleaned for small, unconnected islands which are likely to be noise. An iterative closing method is implemented to close both fat and muscle masks while preserving independent boundaries. These final masks are then cleaned by removing sections in the skin, and removing small areas of segmentation.
@@ -37,7 +41,7 @@ The mask finalization proceedure starts by removing small islands which make up 
 ## Statistics calculation
 Physical statistics were calculated using the label shape statistics [filter](https://simpleitk.org/doxygen/latest/html/classitk_1_1simple_1_1LabelShapeStatisticsImageFilter) and the label statistics [filter](https://simpleitk.org/doxygen/latest/html/classitk_1_1simple_1_1LabelStatisticsImageFilter.html). The total volume was calculated for the soft tissue masks and limb mask (without the bones), and average intensity was calculated for each soft tissue mask. A volume ratio was calculated by dividing the soft tissue mask volume by the total limb volume. The average cross sectional area was calculated by dividing the total volume by the physical height (# slices * image spacing) as previously [reported](https://www.sciencedirect.com/science/article/abs/pii/S1094695020301426). 
 
-These final results are currently printed to the screen, however in the validate function used to batch images for this abstract, the results are compiled and saved to a csv file. 
+These final results are currently printed to the screen, however in the batch processing function the results are compiled and saved to a csv file. 
 
 # Usage
 This script can be used by setting up the anaconda environment, and then providing the input file or directory to be segmented. 
@@ -61,7 +65,6 @@ If anaconda is installed on the system, the environment can be created by openin
 conda env create -f scanco_vtkbone.yml
 ```
 
-
 ## Running the program
 The program can be run from the terminal command line by activating the conda environment and then running the python progam.
 ```bash
@@ -69,20 +72,35 @@ conda activate scanco_vtkbone
 ```
 
 ```bash
-python3 HrpqctSoftTissueAnalysis/SoftTissueSegmentation.py -i <input> 
+python3 HrpqctSoftTissueAnalysis/SoftTissueSegmentation.py -i <input_file/_folder> -o <output_folder>
 ```
 
 An example command would look like this:
 ```bash
-python3 HrpqctSoftTissueAnalysis/SoftTissueSegmentation.py -i //medctr/path/to/img.nii.gz
-python3 HrpqctSoftTissueAnalysis/SoftTissueSegmentation.py -i //medctr/path/to/img.isq
-python3 HrpqctSoftTissueAnalysis/SoftTissueSegmentation.py -i //medctr/path/to/directory
+python3 HrpqctSoftTissueAnalysis/SoftTissueSegmentation.py -i //medctr/path/to/img.nii.gz -o //medctr/path/output/folder -I
+python3 HrpqctSoftTissueAnalysis/SoftTissueSegmentation.py -i //medctr/path/to/img.isq -o //medctr/path/output/folder -I
+python3 HrpqctSoftTissueAnalysis/SoftTissueSegmentation.py -i //medctr/path/to/directory -I
 
 ```
 Where the directory holds with .nii.gz or .isq files to be segmented.
 
+Full Argument List (plus abbreviations)
+```python
+--input, -i: Path to the input file or folder
+--output, -o: Path to output folder
+--muscle_lower, -mL: Set the lower HU value for muscle threshold
+--muscle_upper, -mU: Set the upper HU value for muscle threshold
+--fat_lower, -fL: Set the lower HU value for the fat threshold
+--fat_upper, -fU: Set the upper HU value for the fat threshold
+--write_intermediate, -I: Write out intermediate images
+--preprocess_name, -p: Update patient name in metadata to be the name of the input file
+--verbose,-v: Print out process statements to indicate program progress
+```
+
 # Future Work
 In the future, I plan to continue refinement of the soft tissue analysis through further hardening of the program against edge cases. One current known issue is with any soft tissue out of field artifacts. Additionally, I'd like to work on extraction of a separate intramuscular fat (IMAT) region to add an additional measure of muscle quality. 
+
+I plan to apply this to larger cohorts for testing in the future to determine where additional work is needed. 
 
 # Thank you!
 If you'd like to use this tool, or have any issues, please reach out to my email:
